@@ -1,0 +1,98 @@
+server:
+  port: 8083
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: backend
+  
+  # MySQL Database Configuration
+  datasource:
+    url: jdbc:mysql://localhost:3306/algoviz_code_execution
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+  
+  web:
+    cors:
+      allowed-origins: "http://localhost:4200"
+      allowed-methods: "*"
+      allowed-headers: "*"
+      allow-credentials: true
+
+  flyway:
+    enabled: false
+
+  # Judge0 API Configuration (optional - comment out if not using Judge0)
+  judge0:
+    enabled: false  # Set to true and configure below if using Judge0
+    api:
+      url: http://localhost:2358  # Default Judge0 API URL
+      key: your-judge0-api-key    # Your Judge0 API key
+      host: judge0-ce.p.rapidapi.com  # If using RapidAPI
+      rapidapi-key: your-rapidapi-key  # If using RapidAPI
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope:
+              - email
+              - profile
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:YourSuperSecretKeyShouldBeLongAndSecureAtLeast64CharactersLong1234567890abcdefghijklmnopqrstuvwxyz}
+  expiration: 86400000 # 24 hours
+  issuer: AlgorithmVisualizer
+  audience: AlgorithmVisualizerFrontend
+
+# Judge0 API Configuration
+judge0:
+  baseUrl: https://ce.judge0.com
+  apiKey: ${JUDGE0_API_KEY:} # IMPORTANT: Please enter your Judge0 API key here
+  callbackUrl: http://localhost:8080/api/judge/callback
+
+# Code Execution Configuration
+code:
+  execution:
+    timeout: 5000 # milliseconds
+    memory-limit: 128 # MB
+    temp-dir: /tmp/algoviz # Temporary directory for code execution
+    max-concurrent-executions: 10
+    cleanup-interval: 300000 # 5 minutes in milliseconds
+
+# Security Configuration
+security:
+  sandbox:
+    enabled: true
+    docker:
+      enabled: false # Set to true if using Docker for sandboxing
+      image: "algoviz/sandbox:latest"
+    resource-limits:
+      max-file-size: 1048576 # 1MB
+      max-output-size: 1048576 # 1MB
+      max-processes: 5
+
+logging:
+  level:
+    com.algo.backend: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

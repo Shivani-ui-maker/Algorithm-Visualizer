@@ -1,0 +1,547 @@
+package com.algoviz.codeexecution.service;
+
+import com.algoviz.codeexecution.dto.*;
+import com.algoviz.codeexecution.entity.Problem;
+import com.algoviz.codeexecution.entity.TestCase;
+import com.algoviz.codeexecution.entity.Submission;
+import com.algoviz.codeexecution.repository.SubmissionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.*;
+import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class CodeExecutionService {
+
+    @Autowired
+    private ProblemService problemService;
+    
+    @Autowired
+    private SubmissionRepository submissionRepository;
+    
+    @Value("${code.execution.temp-dir:/tmp/algoviz}")
+    private String tempDir;
+    
+    @Value("${code.execution.timeout:5000}")
+    private long timeoutMs;
+    
+    @Value("${code.execution.memory-limit:128}")
+    private int memoryLimitMB;
+
+    // Language command mappings
+    private static final Map<String, String[]> COMPILE_COMMANDS = Map.of(
+        "JAVA", new String[]{"javac", "Main.java"},
+        "CPP", new String[]{"g++", "Main.cpp", "-o", "Main", "-std=c++17"},
+        "PYTHON", new String[]{} // Python doesn't need compilation
+    );
+    
+    private static final Map<String, String[]> RUN_COMMANDS = Map.of(
+        "JAVA", new String[]{"java", "Main"},
+        "CPP", new String[]{"./Main"},
+        "PYTHON", new String[]{"python3", "Main.py"}
+    );
+
+    public ExecutionResultDTO executeCode(CodeExecutionRequestDTO request) {
+        String sessionId = UUID.randomUUID().toString();
+        Path workingDir = null;
+        
+        try {
+            // Create isolated working directory
+            workingDir = createWorkingDirectory(sessionId);
+            
+            // Save code to appropriate file
+            String fileName = getFileName(request.getLanguage().name());
+            Path codeFile = workingDir.resolve(fileName);
+            Files.write(codeFile, request.getCode().getBytes());
+            
+            // Compile if needed
+            if (request.getLanguage().needsCompilation()) {
+                CompilationResult compilationResult = compileCode(request.getLanguage().name(), workingDir);
+                if (!compilationResult.isSuccess()) {
+                    return ExecutionResultDTO.builder()
+                        .success(false)
+                        .error("⚠️ Compilation Error:\n" + compilationResult.getError())
+                        .compilerOutput(compilationResult.getError())
+                        .executionTime(0L)
+                        .exitCode(1)
+                        .build();
+                }
+            }
+            
+            // Execute code
+            ExecutionResultDTO result = executeCodeInSandbox(workingDir, request.getLanguage(), request.getInput(), sessionId);
+            
+            // Cleanup
+            cleanupWorkingDirectory(workingDir);
+            
+            return result;
+            
+        } catch (Exception e) {
+            return ExecutionResultDTO.builder()
+                .success(false)
+                .error("Internal execution error: " + e.getMessage())
+                .executionTime(0L)
+                .exitCode(1)
+                .build();
+        }
+    }
+
+    /**
+     * Evaluate code against problem test cases - for Submit functionality
+     */
+    public EvaluationResultDTO evaluateSubmission(String code, Language language, Long problemId, Long userId) {
+        String sessionId = UUID.randomUUID().toString();
+        
+        try {
+            // Get problem and test cases
+            Problem problem = problemService.getProblemEntityById(problemId);
+            List<TestCase> testCases = problem.getTestCases();
+            
+            // Create secure execution environment
+            Path workingDir = createSecureWorkingDirectory(sessionId);
+            
+            // Save source code to file
+            Path sourceFile = saveSourceCode(workingDir, code, language, sessionId);
+            
+            // Compile if needed
+            if (language.needsCompilation()) {
+                ExecutionResultDTO compileResult = compileCode(workingDir, sourceFile, language);
+                if (!compileResult.isSuccess()) {
+                    // Save failed submission
+                    saveSubmission(userId, problemId, code, language, Verdict.COMPILATION_ERROR, 0, compileResult.getError());
+                    
+                    return EvaluationResultDTO.builder()
+                        .verdict(Verdict.COMPILATION_ERROR)
+                        .score(0)
+                        .message(compileResult.getError())
+                        .testResults(new ArrayList<>())
+                        .executionTime(compileResult.getExecutionTime())
+                        .build();
+                }
+            }
+            
+            // Run all test cases
+            List<TestCaseResultDTO> testResults = new ArrayList<>();
+            long totalExecutionTime = 0;
+            int passedTests = 0;
+            
+            for (int i = 0; i < testCases.size(); i++) {
+                TestCase testCase = testCases.get(i);
+                
+                ExecutionResultDTO execResult = executeCodeInSandbox(
+                    workingDir, language, testCase.getInput(), sessionId
+                );
+                
+                totalExecutionTime += execResult.getExecutionTime();
+                
+                TestCaseResultDTO testResult = evaluateTestCase(
+                    i + 1, testCase, execResult
+                );
+                
+                testResults.add(testResult);
+                
+                if (testResult.isPassed()) {
+                    passedTests++;
+                }
+                
+                // Stop on first failure for efficiency (optional)
+                if (!testResult.isPassed() && testResult.getVerdict() != Verdict.WRONG_ANSWER) {
+                    break;
+                }
+            }
+            
+            // Determine overall verdict
+            Verdict overallVerdict = determineOverallVerdict(testResults, testCases.size());
+            
+            // Calculate score
+            int score = calculateScore(passedTests, testCases.size(), problem.getMaxScore());
+            
+            // Save submission
+            saveSubmission(userId, problemId, code, language, overallVerdict, score, null);
+            
+            // Cleanup
+            cleanupWorkingDirectory(workingDir);
+            
+            return EvaluationResultDTO.builder()
+                .verdict(overallVerdict)
+                .score(score)
+                .message(getVerdictMessage(overallVerdict, passedTests, testCases.size()))
+                .testResults(testResults)
+                .executionTime(totalExecutionTime)
+                .totalTestCases(testCases.size())
+                .passedTestCases(passedTests)
+                .build();
+            
+        } catch (Exception e) {
+            return EvaluationResultDTO.builder()
+                .verdict(Verdict.INTERNAL_ERROR)
+                .score(0)
+                .message("Internal evaluation error: " + e.getMessage())
+                .testResults(new ArrayList<>())
+                .executionTime(0L)
+                .build();
+        }
+    }
+
+    private Path createSecureWorkingDirectory(String sessionId) throws IOException {
+        Path baseDir = Paths.get(tempDirectory);
+        if (!Files.exists(baseDir)) {
+            Files.createDirectories(baseDir);
+        }
+        
+        Path workingDir = baseDir.resolve("session_" + sessionId);
+        Files.createDirectory(workingDir);
+        
+        // Set restrictive permissions (Linux/Unix)
+        try {
+            Runtime.getRuntime().exec("chmod 700 " + workingDir.toString()).waitFor();
+        } catch (Exception ignored) {
+            // Windows or permission setting failed
+        }
+        
+        return workingDir;
+    }
+
+    private Path saveSourceCode(Path workingDir, String code, Language language, String sessionId) throws IOException {
+        String fileName = getSourceFileName(language, sessionId);
+        Path sourceFile = workingDir.resolve(fileName);
+        
+        Files.write(sourceFile, code.getBytes());
+        return sourceFile;
+    }
+
+    private String getSourceFileName(Language language, String sessionId) {
+        switch (language) {
+            case JAVA:
+                return "Main.java";
+            case CPP:
+                return "main.cpp";
+            case PYTHON:
+                return "main.py";
+            default:
+                return "code" + language.getExtension();
+        }
+    }
+
+    private ExecutionResultDTO compileCode(Path workingDir, Path sourceFile, Language language) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(workingDir.toFile());
+            
+            switch (language) {
+                case JAVA:
+                    pb.command("javac", "-cp", ".", sourceFile.getFileName().toString());
+                    break;
+                case CPP:
+                    pb.command("g++", "-o", "main", sourceFile.getFileName().toString(), 
+                              "-std=c++17", "-O2", "-Wall");
+                    break;
+                default:
+                    throw new IllegalArgumentException("Language does not need compilation: " + language);
+            }
+            
+            Process process = pb.start();
+            
+            // Capture compilation output
+            String compilerOutput = readProcessOutput(process.getErrorStream());
+            
+            boolean finished = process.waitFor(10, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return ExecutionResultDTO.builder()
+                    .success(false)
+                    .error("Compilation timeout")
+                    .executionTime(System.currentTimeMillis() - startTime)
+                    .build();
+            }
+            
+            int exitCode = process.exitValue();
+            long executionTime = System.currentTimeMillis() - startTime;
+            
+            if (exitCode == 0) {
+                return ExecutionResultDTO.builder()
+                    .success(true)
+                    .compilerOutput(compilerOutput)
+                    .executionTime(executionTime)
+                    .exitCode(exitCode)
+                    .build();
+            } else {
+                return ExecutionResultDTO.builder()
+                    .success(false)
+                    .error("Compilation failed:\n" + compilerOutput)
+                    .compilerOutput(compilerOutput)
+                    .executionTime(executionTime)
+                    .exitCode(exitCode)
+                    .build();
+            }
+            
+        } catch (Exception e) {
+            return ExecutionResultDTO.builder()
+                .success(false)
+                .error("Compilation error: " + e.getMessage())
+                .executionTime(System.currentTimeMillis() - startTime)
+                .build();
+        }
+    }
+
+    private ExecutionResultDTO executeCodeInSandbox(Path workingDir, Language language, String input, String sessionId) {
+        long startTime = System.nanoTime();
+        
+        try {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(workingDir.toFile());
+            
+            // Set up execution command
+            switch (language) {
+                case JAVA:
+                    pb.command("java", "-Xmx" + memoryLimitMB + "m", "-cp", ".", "Main");
+                    break;
+                case CPP:
+                    pb.command("./main");
+                    break;
+                case PYTHON:
+                    pb.command("python3", "main.py");
+                    break;
+            }
+            
+            // Security: limit resources
+            pb.environment().put("MALLOC_ARENA_MAX", "1");
+            
+            Process process = pb.start();
+            
+            // Provide input
+            if (input != null && !input.isEmpty()) {
+                try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream())) {
+                    writer.write(input);
+                    writer.flush();
+                }
+            }
+            
+            // Capture output with timeout
+            Future<String> outputFuture = executorService.submit(() -> readProcessOutput(process.getInputStream()));
+            Future<String> errorFuture = executorService.submit(() -> readProcessOutput(process.getErrorStream()));
+            
+            boolean finished = process.waitFor(executionTimeoutMs, TimeUnit.MILLISECONDS);
+            
+            long executionTime = (System.nanoTime() - startTime) / 1_000_000; // Convert to milliseconds
+            
+            if (!finished) {
+                process.destroyForcibly();
+                return ExecutionResultDTO.builder()
+                    .success(false)
+                    .error("Time Limit Exceeded")
+                    .executionTime(executionTime)
+                    .build();
+            }
+            
+            int exitCode = process.exitValue();
+            
+            String output = "";
+            String error = "";
+            
+            try {
+                output = outputFuture.get(1, TimeUnit.SECONDS);
+                error = errorFuture.get(1, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                // Output reading timed out
+            }
+            
+            if (exitCode == 0) {
+                return ExecutionResultDTO.builder()
+                    .success(true)
+                    .output(output.trim())
+                    .error(error.trim())
+                    .executionTime(executionTime)
+                    .exitCode(exitCode)
+                    .build();
+            } else {
+                return ExecutionResultDTO.builder()
+                    .success(false)
+                    .output(output.trim())
+                    .error("Runtime Error:\n" + error.trim())
+                    .executionTime(executionTime)
+                    .exitCode(exitCode)
+                    .build();
+            }
+            
+        } catch (Exception e) {
+            long executionTime = (System.nanoTime() - startTime) / 1_000_000;
+            return ExecutionResultDTO.builder()
+                .success(false)
+                .error("Execution error: " + e.getMessage())
+                .executionTime(executionTime)
+                .build();
+        }
+    }
+
+    private String readProcessOutput(InputStream inputStream) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+            return output.toString();
+        } catch (IOException e) {
+            return "Error reading output: " + e.getMessage();
+        }
+    }
+
+    private TestCaseResultDTO evaluateTestCase(int testNumber, TestCase testCase, ExecutionResultDTO execResult) {
+        if (!execResult.isSuccess()) {
+            Verdict verdict = determineVerdictFromError(execResult.getError());
+            return TestCaseResultDTO.builder()
+                .testCaseNumber(testNumber)
+                .input(testCase.getInput())
+                .expectedOutput(testCase.getExpectedOutput())
+                .actualOutput(execResult.getOutput())
+                .passed(false)
+                .executionTime(execResult.getExecutionTime())
+                .error(execResult.getError())
+                .verdict(verdict)
+                .build();
+        }
+        
+        // Compare outputs
+        boolean passed = compareOutputs(testCase.getExpectedOutput(), execResult.getOutput());
+        
+        return TestCaseResultDTO.builder()
+            .testCaseNumber(testNumber)
+            .input(testCase.getInput())
+            .expectedOutput(testCase.getExpectedOutput())
+            .actualOutput(execResult.getOutput())
+            .passed(passed)
+            .executionTime(execResult.getExecutionTime())
+            .verdict(passed ? Verdict.ACCEPTED : Verdict.WRONG_ANSWER)
+            .build();
+    }
+
+    private boolean compareOutputs(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return expected == actual;
+        }
+        
+        // Normalize whitespace and compare
+        String normalizedExpected = expected.trim().replaceAll("\\s+", " ");
+        String normalizedActual = actual.trim().replaceAll("\\s+", " ");
+        
+        return normalizedExpected.equals(normalizedActual);
+    }
+
+    private Verdict determineVerdictFromError(String error) {
+        if (error == null) return Verdict.RUNTIME_ERROR;
+        
+        String lowerError = error.toLowerCase();
+        if (lowerError.contains("time limit exceeded") || lowerError.contains("timeout")) {
+            return Verdict.TIME_LIMIT_EXCEEDED;
+        }
+        if (lowerError.contains("memory") || lowerError.contains("outofmemoryerror")) {
+            return Verdict.MEMORY_LIMIT_EXCEEDED;
+        }
+        return Verdict.RUNTIME_ERROR;
+    }
+
+    private Verdict determineOverallVerdict(List<TestCaseResultDTO> testResults, int totalTests) {
+        if (testResults.isEmpty()) {
+            return Verdict.INTERNAL_ERROR;
+        }
+        
+        int passedCount = 0;
+        Verdict firstFailureVerdict = null;
+        
+        for (TestCaseResultDTO result : testResults) {
+            if (result.isPassed()) {
+                passedCount++;
+            } else if (firstFailureVerdict == null) {
+                firstFailureVerdict = result.getVerdict();
+            }
+        }
+        
+        if (passedCount == totalTests) {
+            return Verdict.ACCEPTED;
+        }
+        
+        return firstFailureVerdict != null ? firstFailureVerdict : Verdict.WRONG_ANSWER;
+    }
+
+    private int calculateScore(int passedTests, int totalTests, int maxScore) {
+        if (totalTests == 0) return 0;
+        return (int) Math.round((double) passedTests / totalTests * maxScore);
+    }
+
+    private String getVerdictMessage(Verdict verdict, int passed, int total) {
+        switch (verdict) {
+            case ACCEPTED:
+                return String.format("All test cases passed! (%d/%d)", passed, total);
+            case WRONG_ANSWER:
+                return String.format("Wrong answer on test case. Passed: %d/%d", passed, total);
+            case TIME_LIMIT_EXCEEDED:
+                return "Time limit exceeded. Optimize your solution.";
+            case MEMORY_LIMIT_EXCEEDED:
+                return "Memory limit exceeded. Reduce memory usage.";
+            case RUNTIME_ERROR:
+                return "Runtime error occurred during execution.";
+            case COMPILATION_ERROR:
+                return "Code failed to compile. Check syntax errors.";
+            default:
+                return "Evaluation completed with issues.";
+        }
+    }
+
+    private void saveSubmission(Long userId, Long problemId, String code, Language language, 
+                               Verdict verdict, int score, String error) {
+        try {
+            Submission submission = new Submission();
+            submission.setUserId(userId);
+            submission.setProblemId(problemId);
+            submission.setCode(code);
+            submission.setLanguage(language.getName());
+            submission.setVerdict(verdict);
+            submission.setScore(score);
+            submission.setError(error);
+            submission.setSubmittedAt(LocalDateTime.now());
+            
+            submissionRepository.save(submission);
+        } catch (Exception e) {
+            // Log error but don't fail the evaluation
+            System.err.println("Failed to save submission: " + e.getMessage());
+        }
+    }
+
+    private void cleanupWorkingDirectory(Path workingDir) {
+        try {
+            Files.walk(workingDir)
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
+        } catch (IOException e) {
+            System.err.println("Failed to cleanup working directory: " + e.getMessage());
+        }
+    }
+
+    public List<SubmissionDTO> getUserSubmissions(Long userId, Long problemId) {
+        List<Submission> submissions = submissionRepository.findByUserIdAndProblemIdOrderBySubmittedAtDesc(userId, problemId);
+        return submissions.stream()
+            .map(this::convertToDTO)
+            .toList();
+    }
+
+    private SubmissionDTO convertToDTO(Submission submission) {
+        return SubmissionDTO.builder()
+            .id(submission.getId())
+            .userId(submission.getUserId())
+            .problemId(submission.getProblemId())
+            .language(submission.getLanguage())
+            .verdict(submission.getVerdict())
+            .score(submission.getScore())
+            .submittedAt(submission.getSubmittedAt())
+            .build();
+    }
+}

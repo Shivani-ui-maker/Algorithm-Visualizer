@@ -1,0 +1,8 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    
+    "java.configuration.updateBuildConfiguration": "interactive",
+
+    // 👇 Lombok support (make sure lombok-1.18.40.jar is in your project lib folder)
+    "java.jdt.ls.vmargs": "-javaagent:${workspaceFolder}/backend/lib/lombok-1.18.40.jar"
+}

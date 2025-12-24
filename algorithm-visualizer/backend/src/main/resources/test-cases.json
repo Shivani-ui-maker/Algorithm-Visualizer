@@ -1,0 +1,130 @@
+{
+  "problems": [
+    {
+      "id": 1,
+      "title": "Student Grade Management System",
+      "testCases": [
+        {
+          "testNumber": 1,
+          "input": "85 78 92 95",
+          "expectedOutput": "Final Grade: 86.5, Letter: B+",
+          "isSample": true,
+          "explanation": "Standard test case: assignments(85)*0.3 + midterm(78)*0.25 + final(92)*0.35 + participation(95)*0.1 = 86.5 → B+"
+        },
+        {
+          "testNumber": 2,
+          "input": "90 85 88 92",
+          "expectedOutput": "Final Grade: 88.1, Letter: B+",
+          "isSample": false,
+          "explanation": "Test case with higher scores: 90*0.3 + 85*0.25 + 88*0.35 + 92*0.1 = 88.1 → B+"
+        },
+        {
+          "testNumber": 3,
+          "input": "70 65 75 80",
+          "expectedOutput": "Final Grade: 71.5, Letter: C-",
+          "isSample": false,
+          "explanation": "Test case with lower scores: 70*0.3 + 65*0.25 + 75*0.35 + 80*0.1 = 71.5 → C-"
+        },
+        {
+          "testNumber": 4,
+          "input": "95 98 96 100",
+          "expectedOutput": "Final Grade: 96.55, Letter: A+",
+          "isSample": false,
+          "explanation": "Test case with excellent scores: 95*0.3 + 98*0.25 + 96*0.35 + 100*0.1 = 96.55 → A+"
+        },
+        {
+          "testNumber": 5,
+          "input": "60 55 65 70",
+          "expectedOutput": "Final Grade: 61.5, Letter: D-",
+          "isSample": false,
+          "explanation": "Test case with poor scores: 60*0.3 + 55*0.25 + 65*0.35 + 70*0.1 = 61.5 → D-"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Campus Event Scheduling Optimizer",
+      "testCases": [
+        {
+          "testNumber": 1,
+          "input": "2\nTech Talk 10 2 50 auditorium\nWorkshop 11 1 30 auditorium\n1\nAuditorium A",
+          "expectedOutput": "Scheduled: 1 event\nTech Talk: Auditorium A (10:00-12:00)\nConflicts: Workshop overlaps with Tech Talk",
+          "isSample": true,
+          "explanation": "Should detect time conflict between Tech Talk (10-12) and Workshop (11-12) in same venue type"
+        },
+        {
+          "testNumber": 2,
+          "input": "3\nMeeting A 9 1 20 room\nMeeting B 10 1 25 room\nSeminar 9 2 40 auditorium\n2\nRoom 101\nAuditorium A",
+          "expectedOutput": "Scheduled: 3 events\nMeeting A: Room 101 (9:00-10:00)\nMeeting B: Room 101 (10:00-11:00)\nSeminar: Auditorium A (9:00-11:00)",
+          "isSample": false,
+          "explanation": "Should schedule all events without conflicts using different venues"
+        },
+        {
+          "testNumber": 3,
+          "input": "3\nEvent1 10 3 100 auditorium\nEvent2 11 2 80 auditorium\nEvent3 14 1 60 auditorium\n1\nAuditorium A",
+          "expectedOutput": "Scheduled: 2 events\nEvent1: Auditorium A (10:00-13:00)\nEvent3: Auditorium A (14:00-15:00)\nConflicts: Event2 overlaps with Event1",
+          "isSample": false,
+          "explanation": "Should choose optimal non-overlapping events (Event1: 10-13, Event3: 14-15), skip Event2 (11-13)"
+        },
+        {
+          "testNumber": 4,
+          "input": "4\nLecture 9 1 50 room\nLab 10 2 30 lab\nMeeting 11 1 20 room\nWorkshop 13 2 40 room\n3\nRoom 101\nLab A\nRoom 102",
+          "expectedOutput": "Scheduled: 4 events\nLecture: Room 101 (9:00-10:00)\nLab: Lab A (10:00-12:00)\nMeeting: Room 101 (11:00-12:00)\nWorkshop: Room 102 (13:00-15:00)",
+          "isSample": false,
+          "explanation": "Should schedule all events using multiple venues efficiently"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Simple Array Sum",
+      "testCases": [
+        {
+          "testNumber": 1,
+          "input": "3\n1 2 3",
+          "expectedOutput": "6",
+          "isSample": true,
+          "explanation": "Sum of [1, 2, 3] = 6"
+        },
+        {
+          "testNumber": 2,
+          "input": "5\n5 4 3 2 1",
+          "expectedOutput": "15",
+          "isSample": false,
+          "explanation": "Sum of [5, 4, 3, 2, 1] = 15"
+        },
+        {
+          "testNumber": 3,
+          "input": "1\n42",
+          "expectedOutput": "42",
+          "isSample": false,
+          "explanation": "Sum of single element [42] = 42"
+        },
+        {
+          "testNumber": 4,
+          "input": "6\n10 20 30 40 50 60",
+          "expectedOutput": "210",
+          "isSample": false,
+          "explanation": "Sum of [10, 20, 30, 40, 50, 60] = 210"
+        }
+      ]
+    }
+  ],
+  "starterCodes": {
+    "1": {
+      "java": "import java.util.Scanner;\n\npublic class Main {\n    public static class GradeResult {\n        double finalGrade;\n        String letterGrade;\n        \n        GradeResult(double grade, String letter) {\n            this.finalGrade = grade;\n            this.letterGrade = letter;\n        }\n        \n        @Override\n        public String toString() {\n            return String.format(\"Final Grade: %.1f, Letter: %s\", finalGrade, letterGrade);\n        }\n    }\n    \n    public static GradeResult calculateFinalGrade(double assignments, double midterm, double finalExam, double participation) {\n        // TODO: Implement weighted grade calculation\n        // Weights: assignments 30%, midterm 25%, final 35%, participation 10%\n        \n        return new GradeResult(0.0, \"F\");\n    }\n    \n    public static String getLetterGrade(double score) {\n        // TODO: Implement letter grade mapping\n        // A+: 97-100, A: 93-96, A-: 90-92\n        // B+: 87-89, B: 83-86, B-: 80-82\n        // C+: 77-79, C: 73-76, C-: 70-72\n        // D+: 67-69, D: 63-66, D-: 60-62\n        // F: 0-59\n        \n        return \"F\";\n    }\n    \n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        double assignments = scanner.nextDouble();\n        double midterm = scanner.nextDouble();\n        double finalExam = scanner.nextDouble();\n        double participation = scanner.nextDouble();\n        \n        GradeResult result = calculateFinalGrade(assignments, midterm, finalExam, participation);\n        System.out.println(result);\n        \n        scanner.close();\n    }\n}",
+      "cpp": "#include <iostream>\n#include <string>\n#include <iomanip>\nusing namespace std;\n\nstruct GradeResult {\n    double finalGrade;\n    string letterGrade;\n};\n\nstring getLetterGrade(double score) {\n    // TODO: Implement letter grade mapping\n    // A+: 97-100, A: 93-96, A-: 90-92\n    // B+: 87-89, B: 83-86, B-: 80-82\n    // C+: 77-79, C: 73-76, C-: 70-72\n    // D+: 67-69, D: 63-66, D-: 60-62\n    // F: 0-59\n    \n    return \"F\";\n}\n\nGradeResult calculateFinalGrade(double assignments, double midterm, double finalExam, double participation) {\n    // TODO: Implement weighted grade calculation\n    // Weights: assignments 30%, midterm 25%, final 35%, participation 10%\n    \n    return {0.0, \"F\"};\n}\n\nint main() {\n    double assignments, midterm, finalExam, participation;\n    cin >> assignments >> midterm >> finalExam >> participation;\n    \n    GradeResult result = calculateFinalGrade(assignments, midterm, finalExam, participation);\n    \n    cout << fixed << setprecision(1);\n    cout << \"Final Grade: \" << result.finalGrade << \", Letter: \" << result.letterGrade << endl;\n    \n    return 0;\n}",
+      "python": "def calculate_final_grade(assignments, midterm, final_exam, participation):\n    \"\"\"\n    Calculate weighted final grade and letter grade\n    Weights: assignments 30%, midterm 25%, final 35%, participation 10%\n    \"\"\"\n    # TODO: Implement weighted grade calculation\n    \n    return 0.0, \"F\"\n\ndef get_letter_grade(score):\n    \"\"\"Convert numeric score to letter grade\"\"\"\n    # TODO: Implement letter grade mapping\n    # A+: 97-100, A: 93-96, A-: 90-92\n    # B+: 87-89, B: 83-86, B-: 80-82\n    # C+: 77-79, C: 73-76, C-: 70-72\n    # D+: 67-69, D: 63-66, D-: 60-62\n    # F: 0-59\n    \n    return \"F\"\n\ndef main():\n    # Read input\n    scores = list(map(float, input().split()))\n    assignments, midterm, final_exam, participation = scores\n    \n    # Calculate grade\n    final_grade, letter_grade = calculate_final_grade(assignments, midterm, final_exam, participation)\n    \n    # Output result\n    print(f\"Final Grade: {final_grade:.1f}, Letter: {letter_grade}\")\n\nif __name__ == \"__main__\":\n    main()"
+    },
+    "3": {
+      "java": "import java.util.*;\n\npublic class Main {\n    static class Event {\n        String name;\n        int startTime;\n        int duration;\n        int expectedAttendance;\n        String venueType;\n        \n        Event(String name, int start, int duration, int attendance, String venue) {\n            this.name = name;\n            this.startTime = start;\n            this.duration = duration;\n            this.expectedAttendance = attendance;\n            this.venueType = venue;\n        }\n        \n        int getEndTime() {\n            return startTime + duration;\n        }\n    }\n    \n    static class ScheduleResult {\n        List<Event> scheduledEvents;\n        Map<Event, String> venueAssignments;\n        List<String> conflicts;\n        \n        ScheduleResult() {\n            scheduledEvents = new ArrayList<>();\n            venueAssignments = new HashMap<>();\n            conflicts = new ArrayList<>();\n        }\n    }\n    \n    public static ScheduleResult scheduleEvents(List<Event> events, List<String> venues) {\n        // TODO: Implement optimal event scheduling\n        // 1. Check for time conflicts between events\n        // 2. Assign venues to non-conflicting events\n        // 3. Maximize number of scheduled events or total attendance\n        \n        return new ScheduleResult();\n    }\n    \n    public static boolean hasConflict(Event e1, Event e2) {\n        // TODO: Check if two events have time overlap\n        \n        return false;\n    }\n    \n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        \n        int numEvents = scanner.nextInt();\n        scanner.nextLine(); // consume newline\n        \n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < numEvents; i++) {\n            String[] parts = scanner.nextLine().split(\" \");\n            String name = parts[0];\n            int start = Integer.parseInt(parts[1]);\n            int duration = Integer.parseInt(parts[2]);\n            int attendance = Integer.parseInt(parts[3]);\n            String venueType = parts[4];\n            \n            events.add(new Event(name, start, duration, attendance, venueType));\n        }\n        \n        int numVenues = scanner.nextInt();\n        scanner.nextLine(); // consume newline\n        \n        List<String> venues = new ArrayList<>();\n        for (int i = 0; i < numVenues; i++) {\n            venues.add(scanner.nextLine());\n        }\n        \n        ScheduleResult result = scheduleEvents(events, venues);\n        \n        // TODO: Format and print the result\n        System.out.println(\"Scheduled: 0 events\");\n        \n        scanner.close();\n    }\n}",
+      "cpp": "#include <vector>\n#include <string>\n#include <iostream>\n#include <algorithm>\n#include <map>\nusing namespace std;\n\nstruct Event {\n    string name;\n    int startTime;\n    int duration;\n    int expectedAttendance;\n    string venueType;\n    \n    int getEndTime() const {\n        return startTime + duration;\n    }\n};\n\nstruct ScheduleResult {\n    vector<Event> scheduledEvents;\n    map<string, string> venueAssignments;\n    vector<string> conflicts;\n};\n\nbool hasConflict(const Event& e1, const Event& e2) {\n    // TODO: Check if two events have time overlap\n    \n    return false;\n}\n\nScheduleResult scheduleEvents(vector<Event>& events, vector<string>& venues) {\n    // TODO: Implement optimal event scheduling\n    // 1. Check for time conflicts between events\n    // 2. Assign venues to non-conflicting events\n    // 3. Maximize number of scheduled events or total attendance\n    \n    ScheduleResult result;\n    \n    // Wrong implementation that assigns all events to first venue\n    // This should be detected as incorrect!\n    for (auto& e : events) {\n        result.scheduledEvents.push_back(e);\n        result.venueAssignments[e.name] = venues[0];\n    }\n    \n    return result;\n}\n\nint main() {\n    int numEvents;\n    cin >> numEvents;\n    \n    vector<Event> events;\n    for (int i = 0; i < numEvents; i++) {\n        Event e;\n        cin >> e.name >> e.startTime >> e.duration >> e.expectedAttendance >> e.venueType;\n        events.push_back(e);\n    }\n    \n    int numVenues;\n    cin >> numVenues;\n    \n    vector<string> venues;\n    for (int i = 0; i < numVenues; i++) {\n        string venue;\n        cin >> venue;\n        venues.push_back(venue);\n    }\n    \n    ScheduleResult result = scheduleEvents(events, venues);\n    \n    // TODO: Format and print the result properly\n    cout << \"Scheduled: \" << result.scheduledEvents.size() << \" events\" << endl;\n    \n    return 0;\n}",
+      "python": "def schedule_events(events, venues):\n    \"\"\"\n    Implement optimal event scheduling\n    Args:\n        events: List of event dictionaries with keys: name, start_time, duration, attendance, venue_type\n        venues: List of available venue names\n    Returns:\n        Dictionary with scheduled_events, venue_assignments, conflicts\n    \"\"\"\n    # TODO: Implement proper scheduling algorithm\n    # 1. Check for time conflicts between events\n    # 2. Assign venues to non-conflicting events  \n    # 3. Maximize number of scheduled events or total attendance\n    \n    return {\n        'scheduled_events': [],\n        'venue_assignments': {},\n        'conflicts': []\n    }\n\ndef has_conflict(event1, event2):\n    \"\"\"Check if two events have time overlap\"\"\"\n    # TODO: Implement conflict detection\n    # Events conflict if they overlap in time and need same venue type\n    \n    return False\n\ndef main():\n    num_events = int(input())\n    \n    events = []\n    for _ in range(num_events):\n        parts = input().split()\n        event = {\n            'name': parts[0],\n            'start_time': int(parts[1]),\n            'duration': int(parts[2]),\n            'attendance': int(parts[3]),\n            'venue_type': parts[4]\n        }\n        events.append(event)\n    \n    num_venues = int(input())\n    venues = []\n    for _ in range(num_venues):\n        venues.append(input().strip())\n    \n    result = schedule_events(events, venues)\n    \n    # TODO: Format and print the result\n    print(f\"Scheduled: {len(result['scheduled_events'])} events\")\n\nif __name__ == \"__main__\":\n    main()"
+    },
+    "4": {
+      "java": "import java.util.Scanner;\n\npublic class Main {\n    public static int arraySum(int[] arr) {\n        // TODO: Calculate sum of array elements\n        \n        return 0;\n    }\n    \n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        \n        int n = scanner.nextInt();\n        int[] arr = new int[n];\n        \n        for (int i = 0; i < n; i++) {\n            arr[i] = scanner.nextInt();\n        }\n        \n        int sum = arraySum(arr);\n        System.out.println(sum);\n        \n        scanner.close();\n    }\n}",
+      "cpp": "#include <iostream>\n#include <vector>\nusing namespace std;\n\nint arraySum(vector<int>& arr) {\n    // TODO: Calculate sum of array elements\n    \n    return 0;\n}\n\nint main() {\n    int n;\n    cin >> n;\n    \n    vector<int> arr(n);\n    for (int i = 0; i < n; i++) {\n        cin >> arr[i];\n    }\n    \n    int sum = arraySum(arr);\n    cout << sum << endl;\n    \n    return 0;\n}",
+      "python": "def array_sum(arr):\n    \"\"\"Calculate sum of array elements\"\"\"\n    # TODO: Implement sum calculation\n    \n    return 0\n\ndef main():\n    n = int(input())\n    arr = list(map(int, input().split()))\n    \n    result = array_sum(arr)\n    print(result)\n\nif __name__ == \"__main__\":\n    main()"
+    }
+  }
+}

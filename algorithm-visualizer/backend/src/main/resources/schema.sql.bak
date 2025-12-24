@@ -1,0 +1,234 @@
+-- AlgoViz Code Execution Database Schema
+
+CREATE DATABASE IF NOT EXISTS algoviz_code_execution;
+USE algoviz_code_execution;
+
+-- Problems table
+CREATE TABLE problems (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    scenario TEXT,
+    input_format TEXT,
+    output_format TEXT,
+    hints TEXT,
+    difficulty ENUM('EASY', 'MEDIUM', 'HARD') NOT NULL DEFAULT 'EASY',
+    category VARCHAR(100),
+    time_limit INT DEFAULT 2000, -- milliseconds
+    memory_limit INT DEFAULT 128, -- MB
+    max_score INT DEFAULT 100,
+    xp_reward INT DEFAULT 50,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_difficulty (difficulty),
+    INDEX idx_category (category)
+);
+
+-- Test cases table
+CREATE TABLE test_cases (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    problem_id BIGINT NOT NULL,
+    test_number INT NOT NULL,
+    input TEXT,
+    expected_output TEXT,
+    is_sample BOOLEAN DEFAULT FALSE,
+    explanation VARCHAR(500),
+    time_limit INT, -- Override problem time limit if needed
+    memory_limit INT, -- Override problem memory limit if needed
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE,
+    INDEX idx_problem_test (problem_id, test_number),
+    INDEX idx_sample (is_sample)
+);
+
+-- Starter codes table
+CREATE TABLE starter_codes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    problem_id BIGINT NOT NULL,
+    language VARCHAR(20) NOT NULL,
+    code TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_problem_language (problem_id, language),
+    INDEX idx_language (language)
+);
+
+-- Submissions table
+CREATE TABLE submissions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    problem_id BIGINT NOT NULL,
+    language VARCHAR(20) NOT NULL,
+    code TEXT NOT NULL,
+    verdict ENUM('ACCEPTED', 'WRONG_ANSWER', 'TIME_LIMIT_EXCEEDED', 'MEMORY_LIMIT_EXCEEDED', 
+                 'RUNTIME_ERROR', 'COMPILATION_ERROR', 'PRESENTATION_ERROR', 'INTERNAL_ERROR') NOT NULL,
+    score INT DEFAULT 0,
+    execution_time BIGINT, -- milliseconds
+    memory_used BIGINT, -- bytes
+    passed_tests INT DEFAULT 0,
+    total_tests INT DEFAULT 0,
+    error TEXT,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE,
+    INDEX idx_user_problem (user_id, problem_id),
+    INDEX idx_user_submitted (user_id, submitted_at),
+    INDEX idx_problem_submitted (problem_id, submitted_at),
+    INDEX idx_verdict (verdict),
+    INDEX idx_submitted_at (submitted_at)
+);
+
+-- Insert sample problems
+INSERT INTO problems (title, description, scenario, input_format, output_format, hints, difficulty, category, time_limit, memory_limit, max_score, xp_reward) VALUES
+('Student Grade Management System', 
+ 'Build a system to calculate and manage student grades with weighted categories.',
+ 'You are developing a grade management system for a university. Teachers need to calculate final grades based on assignments (30%), midterm (25%), final exam (35%), and participation (10%).',
+ 'Four integers: assignments, midterm, final, participation scores',
+ 'Final grade (decimal) and letter grade (A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F)',
+ 'Calculate weighted average using the given percentages. Apply standard grading scale for letter grades.',
+ 'EASY', 'Data Processing', 3000, 64, 100, 100),
+
+('Library Book Recommendation Engine',
+ 'Create a recommendation system that suggests books based on student reading history and preferences.',
+ 'The university library wants to recommend books to students based on their borrowing history, ratings, and similar students preferences.',
+ 'Reading history array, ratings array, preferred category string',
+ 'Array of top 5 recommended book titles',
+ 'Use collaborative filtering. Calculate similarity scores between users. Weight by rating and recency.',
+ 'MEDIUM', 'Recommendation Systems', 5000, 128, 150, 150),
+
+('Campus Event Scheduling Optimizer',
+ 'Design an algorithm to optimally schedule campus events avoiding conflicts and maximizing attendance.',
+ 'The student activities office needs to schedule multiple events across limited venues while avoiding time conflicts and maximizing student participation.',
+ 'Array of events with start time, duration, expected attendance, and venue requirements',
+ 'Optimized schedule with venue assignments and conflict resolution',
+ 'Use interval scheduling algorithm. Apply greedy approach for maximum events. Consider venue capacity constraints.',
+ 'MEDIUM', 'Optimization', 4000, 128, 150, 200),
+
+('Student Performance Analytics Dashboard',
+ 'Build a system to analyze student performance trends and identify at-risk students early.',
+ 'The academic support center needs a system to track student performance across multiple courses and identify declining trends.',
+ 'Student performance data across multiple semesters and courses',
+ 'Performance trends, risk assessment, and intervention recommendations',
+ 'Calculate moving averages. Implement trend analysis. Use statistical methods for risk prediction.',
+ 'HARD', 'Data Analytics', 6000, 256, 200, 250),
+
+('Smart Campus Navigation System',
+ 'Develop a pathfinding algorithm for campus navigation that considers real-time factors.',
+ 'Students need an intelligent navigation system that finds optimal routes between campus buildings, considering accessibility, construction zones, and events.',
+ 'Campus map graph, current obstacles, user preferences, start and end locations',
+ 'Optimal route with estimated time, accessibility info, and alternative paths',
+ 'Implement modified Dijkstra algorithm. Add dynamic edge weights. Consider multiple optimization criteria.',
+ 'HARD', 'Graph Algorithms', 8000, 256, 200, 300);
+
+-- Insert test cases for Grade Management System
+INSERT INTO test_cases (problem_id, test_number, input, expected_output, is_sample, explanation) VALUES
+(1, 1, '85 78 92 95', 'Final Grade: 86.5, Letter: B+', TRUE, 'Standard test case with all scores above 75'),
+(1, 2, '90 85 88 92', 'Final Grade: 88.1, Letter: B+', FALSE, 'Test case with higher scores'),
+(1, 3, '70 65 75 80', 'Final Grade: 71.5, Letter: C-', FALSE, 'Test case with lower scores'),
+(1, 4, '95 98 96 100', 'Final Grade: 96.55, Letter: A+', FALSE, 'Test case with excellent scores'),
+(1, 5, '60 55 65 70', 'Final Grade: 61.5, Letter: D-', FALSE, 'Test case with poor scores');
+
+-- Insert starter codes for Grade Management System
+INSERT INTO starter_codes (problem_id, language, code) VALUES
+(1, 'java', 'public class GradeManager {
+    public static class GradeResult {
+        double finalGrade;
+        String letterGrade;
+        
+        GradeResult(double grade, String letter) {
+            this.finalGrade = grade;
+            this.letterGrade = letter;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("Final Grade: %.1f, Letter: %s", finalGrade, letterGrade);
+        }
+    }
+    
+    public static GradeResult calculateFinalGrade(double assignments, double midterm, double finalExam, double participation) {
+        // TODO: Implement weighted grade calculation
+        // Weights: assignments 30%, midterm 25%, final 35%, participation 10%
+        
+        return new GradeResult(0.0, "F");
+    }
+    
+    public static void main(String[] args) {
+        java.util.Scanner scanner = new java.util.Scanner(System.in);
+        double assignments = scanner.nextDouble();
+        double midterm = scanner.nextDouble();
+        double finalExam = scanner.nextDouble();
+        double participation = scanner.nextDouble();
+        
+        GradeResult result = calculateFinalGrade(assignments, midterm, finalExam, participation);
+        System.out.println(result);
+        
+        scanner.close();
+    }
+}'),
+
+(1, 'cpp', '#include <iostream>
+#include <string>
+#include <iomanip>
+using namespace std;
+
+struct GradeResult {
+    double finalGrade;
+    string letterGrade;
+};
+
+string getLetterGrade(double score) {
+    // TODO: Implement letter grade mapping
+    return "F";
+}
+
+GradeResult calculateFinalGrade(double assignments, double midterm, double finalExam, double participation) {
+    // TODO: Implement weighted grade calculation
+    // Weights: assignments 30%, midterm 25%, final 35%, participation 10%
+    
+    return {0.0, "F"};
+}
+
+int main() {
+    double assignments, midterm, finalExam, participation;
+    cin >> assignments >> midterm >> finalExam >> participation;
+    
+    GradeResult result = calculateFinalGrade(assignments, midterm, finalExam, participation);
+    
+    cout << fixed << setprecision(1);
+    cout << "Final Grade: " << result.finalGrade << ", Letter: " << result.letterGrade << endl;
+    
+    return 0;
+}'),
+
+(1, 'python', 'def calculate_final_grade(assignments, midterm, final_exam, participation):
+    """
+    Calculate weighted final grade and letter grade
+    Weights: assignments 30%, midterm 25%, final 35%, participation 10%
+    """
+    # TODO: Implement weighted grade calculation
+    
+    return 0.0, "F"
+
+def get_letter_grade(score):
+    """Convert numeric score to letter grade"""
+    # TODO: Implement letter grade mapping
+    return "F"
+
+def main():
+    # Read input
+    scores = list(map(float, input().split()))
+    assignments, midterm, final_exam, participation = scores
+    
+    # Calculate grade
+    final_grade, letter_grade = calculate_final_grade(assignments, midterm, final_exam, participation)
+    
+    # Output result
+    print(f"Final Grade: {final_grade:.1f}, Letter: {letter_grade}")
+
+if __name__ == "__main__":
+    main()');
+
+-- Create indexes for better performance
+CREATE INDEX idx_submissions_user_verdict ON submissions(user_id, verdict);
+CREATE INDEX idx_submissions_problem_verdict ON submissions(problem_id, verdict);
+CREATE INDEX idx_test_cases_problem_sample ON test_cases(problem_id, is_sample);
